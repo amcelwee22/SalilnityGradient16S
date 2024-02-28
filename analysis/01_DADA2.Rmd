@@ -13,6 +13,16 @@ knitr::opts_chunk$set(echo = TRUE,
                       fig.path = "../figures/01_DADA2/") # Sends any figure output to this folder
 ```
 
+# Before you start
+
+## Set my seed
+```{r set-seed}
+# Setting the seed so randomized choices a reproducible
+# Any number can be chosen
+set.seed(5318008)
+
+```
+
 ## Goals of this file
 
 1. Use raw fastq files and generate quality plots to assess quality of reads.
@@ -42,7 +52,7 @@ raw_fastqs_path <- "data/01_DADA2/01_raw_gzipped_fastqs"
 raw_fastqs_path
 
 # What files are in this path? Intuition Check
-list.files(raw_fastqs_path)
+#list.files(raw_fastqs_path)
 
 # How many files are there?
 str(list.files(raw_fastqs_path))
@@ -92,16 +102,47 @@ length(filtered_reverse_reads)
 
 
 
-
 # Filter and Trim Reads
+
+Parameters of filter and trim **DEPENDS ON THE DATASET**
+
+- `maxN` = number of N bases. Remove all Ns from the data for ASV                   creation
+- `maxEE` = max expected errors, quality filtering threshold applied to expected errors. Here, it there's two expected errors its okay, but more than 2 throw away the sequence. Two values, first is for forward reads and second is for reverse reads. Better to do with just 1.
+
+-`trimLeft` = the number of nucleotides to remove from the start of each read, here we are removing first 3 base pairs
+
+-`trunQ` = removes any sequences that have base with quality less than 2
 
 ```{r filter-and-trim}
 # NOTE: Must alter trim parameters to quality of your own dataset
-
-?filterAndTrim
+# Assign a vector to filtered reads
+# Trim out poor bases and first 3 bps on F reads
+# write out filtered fastq files
+filtered_reads <-
+  filterAndTrim(fwd = forward_reads, filt = filtered_forward_reads,
+              rev = reverse_reads, filt.rev = filtered_reverse_reads,
+              maxN = 0, maxEE = c(2,2), trimLeft = 3,
+              truncQ = 2, rm.phix = TRUE, compress = TRUE)
+              #multithread = TRUE
 
 ```
 
 
+# Running Python in R!
+```{r setting-up-python}
+# Use this code to set up python environment in R so can use {py} to make a python chunks
+library(reticulate)
+```
 
 
+```{python}
+no
+version
+```
+
+# Session Information
+```{r session-info}
+# Ensure reproducibility by telling software versions
+devtools::session_info()
+
+```
