@@ -2,7 +2,13 @@
 title: "Infer ASVS with DADA2"
 author: "Alicia McElwee"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    collapsed: no
+    smooth_scroll: yes
+    toc_depth: 3
 editor_options: 
   chunk_output_type: console
 ---
@@ -10,7 +16,7 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       fig.align = "center",
-                      fig.path = "../figures/01_DADA2/") # Sends any figure output to this folder
+                      fig.path = "../figures/01_DADA2") # Sends any figure output to this folder
 ```
 
 # Before you start
@@ -29,6 +35,18 @@ set.seed(5318008)
 2. Filter and trim out bad sequences and bases from our sequencing files.
 3. Write out fastq files with high quality sequences
 4. Evaluate the quality from our filter and trim.
+5. Infer errors on forward and reverse reads individually
+6. Infer ASVs on forward and reverse reads separately using the error models
+7. Merged forward and reverse ASVs into continguous ASVs
+8. Generate ASV counts table (ASV counts per sample) `otu_table` input for phyloseq
+9.
+
+
+
+Output that we need:
+1. ASV Count Table: `otu_table`
+2. Taxonomy Table: `tax_table`
+3. Sample Information: `sample_data` track the reads lost throughout DADA2 workflow
 
 # Installing and Loading Libraries
 
@@ -39,6 +57,9 @@ library(devtools)
 
 #devtools::install_github("benjjneb/dada2")
 library(dada2)
+
+#install.packages("tidyverse")
+library(tidyverse)
 
 ```
 
@@ -69,15 +90,17 @@ head(reverse_reads)
 ```
 
 
-# Quality Plots
+# Raw Quality Plots
 ```{r raw-quality-plot}
 # Randomly select 2 samples from dataset to evaluate
 # random_samples <-
 random_samples <- sample(1:length(reverse_reads), size = 2)
 
 # Calculate and plot quality of these two samples
-plotQualityProfile(forward_reads[random_samples])
-plotQualityProfile(reverse_reads[random_samples])
+plotQualityProfile(forward_reads[random_samples]) +
+  labs(title = "Forward Read Raw Quality")
+plotQualityProfile(reverse_reads[random_samples]) +
+  labs(title = "Reverse Read Raw Quality")
 ```
 
 
@@ -113,6 +136,8 @@ Parameters of filter and trim **DEPENDS ON THE DATASET**
 
 -`trunQ` = removes any sequences that have base with quality less than 2
 
+Use controls to check trimming parameters and for contamination
+
 ```{r filter-and-trim}
 # NOTE: Must alter trim parameters to quality of your own dataset
 # Assign a vector to filtered reads
@@ -128,17 +153,121 @@ filtered_reads <-
 ```
 
 
-# Running Python in R!
-```{r setting-up-python}
-# Use this code to set up python environment in R so can use {py} to make a python chunks
-library(reticulate)
+# Trimmed Quality Plots
+
+```{r filterTrim-quality-lot}
+
+plotQualityProfile(filtered_forward_reads[random_samples])+
+  labs(title = "Trimmed Forward Read Quality")
+
+plotQualityProfile(filtered_reverse_reads[random_samples])+
+  labs(title = "Trimmed Forward Read Quality")
+
+```
+
+# Aggregated Trimmed Plots
+```{r aggregated-trimed-QC-plots}
+# Aggregated all QC Plots
+# install and library patchwork
+#plotQualityProfile(filtered_forward_reads, aggregate = TRUE) +
+#  plotQualityProfile(filtered_reverse_reads, aggregate = TRUE)
+
 ```
 
 
-```{python}
-no
-version
+## Stats on read output from `filterAndTrim`
+
+```{r filterTrim-stats}
+# Checking what we outputted from the filterAndTrim command
+str(filtered_reads)
+
+# Making into a dataframe
+filtered_df <- as.data.frame(filtered_reads)
+head(filtered_df)
+
+# Calculate stats on how many reads we lost from filter and trimming
+
+filtered_df %>%
+  reframe(median_reads_in = median(reads.in),
+          median_reads_out = median(reads.out),
+          median_percent_retained = (median(reads.out)/(median(reads.in))))
 ```
+
+
+
+# Error Modelling
+
+**NOTE:** Works within a single sequencing run. Run separately on each Illumina dataset
+
+```{r learn-errors}
+# Goes into each sequence and figures out difference between sequencing error and real biological variation. Starts with most abundant sequence.
+
+# Forward Reads
+error_forward_reads <- 
+  learnErrors(filtered_forward_reads) # multithread = TRUE if done on own
+
+# Plot Forward
+plotErrors(error_forward_reads, nominalQ = TRUE) +
+  labs(title = "Forward Read Error Model")
+
+# Reverse Reads
+error_reverse_reads <-
+  learnErrors(filtered_reverse_reads) # multithread = TRUE if done on own
+
+# Plot Reverse
+plotErrors(error_reverse_reads, nominalQ = TRUE) +
+  labs(tittle = "Reverse Read Error")
+
+```
+
+
+# Infer ASVs
+
+Note that this is happening separately on the forward and reverse reads! This is unique to DADA2
+
+
+```{r infer-ASVs}
+# Infer Forward ASVs
+dada_forward <- dada(filtered_forward_reads,
+                     err = error_forward_reads,
+                     multithread = TRUE)  
+
+# Infer Reverse ASVs
+dada_reverse <- dada(filtered_reverse_reads,
+                     err = error_reverse_reads,
+                     multithread = TRUE)
+```
+
+# Merge Forward & Reverse ASVs
+
+drep is filtered reads for forward and reverse
+
+```{r merge-ASVs}
+# merge forward and reverse ASVs
+merged_ASVs <- mergePairs(dada_forward, filtered_forward_reads,
+                          dada_reverse, filtered_reverse_reads,
+                          verbose = TRUE)
+
+            # Verbose makes it so output will also go in html file when it gets                   knitted
+
+# Evaluate the output
+typeof(merged_ASVs)
+length(merged_ASVs)
+names(merged_ASVs)
+```
+
+
+# Generate ASV Count Table
+
+```{r generate-ASV-table}
+# Create the ASV count table, has the counts of each ASV in each sample
+raw_ASV_table <- makeSequenceTable(merged_ASVs)
+
+# Mar will send code so we can write out the file to data/01_DADA2
+
+```
+
+
 
 # Session Information
 ```{r session-info}
