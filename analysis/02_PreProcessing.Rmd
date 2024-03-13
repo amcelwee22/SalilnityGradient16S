@@ -148,4 +148,145 @@ raw_physeq <- phyloseq(otu_table(asv_tab, taxa_are_rows = TRUE),
                        sample_data(metadata_track_reads_df),
                        tax_table(tax_mat))
 raw_physeq
+
+# Save this raw phyloseq object
+save(raw_physeq, file = "data/02_PreProcessing/raw_physeq.RData")
+```
+
+# Clean up the data
+
+Remove:
+
+1. Chloroplast
+2. Mitochondria
+
+```{r rm-mitos-chloros}
+# Remind myself of tax table
+view(tax_mat)
+
+# Make new physeq without chloroplasts
+noChloros_physeq <-
+  raw_physeq %>%
+  # rm chloroplasts
+  subset_taxa(Order != "Chloroplast" | is.na(Order))
+
+# How many taxa were chloroplasts?
+num_chloro_ASVs <- ntaxa(raw_physeq) - ntaxa(noChloros_physeq)
+num_chloro_ASVs
+
+# Intuition check, checking that tax table of filtered data does not contain chloroplasts
+#noChloros_physeq %>%
+#  tax_table() %>%
+#  data.frame() %>%
+#  view()
+
+# remove mitochondria
+noChlorosMitos_physeq <- noChloros_physeq %>%
+  subset_taxa(Family != "Mitochondria" | is.na(Family))
+
+# How many mitochondrial ASVs?
+num_mito_ASVs <-ntaxa(noChloros_physeq) - ntaxa(noChlorosMitos_physeq)
+num_mito_ASVs
+
+noChlorosMitos_physeq
+
+# How many total ASVs were removed from Chloros and Mitos
+total_ASVs_rm <- ntaxa(raw_physeq) - ntaxa(noChlorosMitos_physeq)
+total_ASVs_rm
+
+# Proportion ASVs kept?
+ntaxa(noChlorosMitos_physeq)/ntaxa(raw_physeq)
+
+```
+
+# Evaluate and remove the control samples
+
+Take a look at the negative controls and then make a decision about whether or not to remove the ASVS we found in our controls
+
+1. Negative Controls
+2. ASVs found in negative control and their distribution in the sample
+3. Evaluate the mock community
+
+## Negative Controls
+```{r neg-controls}
+
+# create a vector of samples that were negative controls
+control_samples <- c("WaterControl", "022um-Control",
+                     "3um-Control", "DNA-Ext-Control")
+
+# Make a new phyloseq object of only the control samples
+control_physeq <-
+  noChlorosMitos_physeq %>%
+  subset_samples(., (names %in% control_samples)) %>% # Found that controls had as many taxa as other samples
+  #force remove ASVs with 0 counts
+  prune_taxa(taxa_sums(.) > 0, .) # Get rid of 0 count ASVs in controls
+
+control_physeq
+
+# Are these 31 ASVs contaminates?
+
+# Vector of control ASVs
+control_ASVs <- 
+  control_physeq %>%
+  tax_table() %>%
+  data.frame() %>%
+  dplyr::select(ASV) %>%
+  as.vector()
+
+control_ASVs
+
+# Visualize raw abundance values of control ASVs
+
+control_physeq %>%
+  plot_bar(., "ASV", fill = "ASV")
+    # ASV 3 is most abundant, so 3rd most abundant ASV is in negative controls
+
+# What is distribution of negative control ASVs between controls and actual samples?
+
+######## Check the control ASVs in the sample
+# Make new phyloseq object with only the controls ASVs in ALL samples
+controlASV_physeq <- noChlorosMitos_physeq %>%
+  subset_taxa(., ASV %in% control_ASVs$ASV)
+
+# Inspect it
+controlASV_physeq
+
+# Take a look at the abundances
+controlASV_physeq %>%
+  plot_bar(., "ASV", fill = "ASV", facet_grid = Sample_or_Control~.)
+
+  # Check ASVs that are in controls? If very abundant in controls and found in sample, likely want to remove them. Could do double check of taxonomy table of the ASVs to see what they may be/ are they likely to be contamination. Could also subtract out mean counts from controls
+
+# Check tax of ASV_3
+#control_physeq %>%
+#  tax_table() %>%
+#  data.frame() %>%
+#  view()
+
+# Would only like to keep ASV_18 and ASV_56, everything else is trash
+controlASVs_toREMOVE <- dplyr::setdiff(control_ASVs$ASV, c("ASV_18","ASV_56"))
+# double check
+length(controlASVs_toREMOVE)
+
+noControls_ChlorosMitos_physeq <-
+  noChlorosMitos_physeq %>%
+  # Actually remove the control ASVs (except 18, 56)
+  subset_taxa(., !(ASV %in% controlASVs_toREMOVE)) %>%
+  # REmove control samples
+  subset_samples(., !(names %in% control_samples))
+  
+noControls_ChlorosMitos_physeq
+
+# After filtering, how many ASVs were removed?
+total_ASVs_rm <- ntaxa(raw_physeq) - ntaxa(noControls_ChlorosMitos_physeq)
+total_ASVs_rm
+
+```
+
+
+# Session Information
+```{r session-info}
+# Ensure reproducibility by telling software versions
+devtools::session_info()
+
 ```
