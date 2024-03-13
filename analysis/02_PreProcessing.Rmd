@@ -94,14 +94,58 @@ tax_mat <- tax_df %>%
 ``` {r load-track-reads}
 load("data/01_DADA2/track_read_counts.RData")
 
+# Take a look at the data
+head(track_counts_df)
+dim(track_counts_df)
 
+#  Load in metadata
+metadata_df <- read.csv("data/metadata.csv")
+view(metadata_df)
+dim(metadata_df)
+colnames(metadata_df)
+
+# Merge metadata_df with track_reads_df
+head(metadata_df)
+head(track_counts_df) # Both share same names, so will use that to join
+metadata_track_reads_df <- 
+  metadata_df %>%
+  left_join(., track_counts_df, by = "names") %>%
+  dplyr::select(-X)
+
+# Intuition Check
+head(metadata_track_reads_df)
+
+# Update row.names to be sample names
+## Before
+row.names(metadata_track_reads_df)
+
+## Rewrite
+row.names(metadata_track_reads_df) <- metadata_track_reads_df$names
+  
+## Check that it worked
+row.names(metadata_track_reads_df)
+
+# Intuition check
+head(metadata_track_reads_df)
 ```
 
 
 # Handoff to Phyloseq
 
-Make data into phyloseq object
+Combine data into phyloseq object
+
 ```{r phyloseq-handoff}
+# Double check its all good
+dim(asv_tab)
+dim(tax_mat)
 
+# Intuition check
+stopifnot(row.names(asv_tab) == row.names(tax_mat)) # Code stops if what is in parenthesis is not true
+    # If no output, is good!
 
+# Construct phyloseq object
+raw_physeq <- phyloseq(otu_table(asv_tab, taxa_are_rows = TRUE), 
+                       sample_data(metadata_track_reads_df),
+                       tax_table(tax_mat))
+raw_physeq
 ```
