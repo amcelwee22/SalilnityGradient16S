@@ -153,6 +153,38 @@ ggiNEXT(iNEXT_data, type = 1, facet.var= "Order.q") +
   scale_shape_manual(values = base::rep(17, nsamples(raw_preprocessed_physeq)), guide = FALSE) +
   theme(legend.position = "none")
 
+```
 
+# Manually plot diversity
+
+
+## Rarefaction curve
+```{r iNEXT-manual}
+
+iNEXT_manual_df <-
+  iNEXT_data$iNextEst$size_based %>% # $ in S3 object subsets different lists
+  # Change assemblage to names
+  dplyr::rename(names = Assemblage) %>% 
+  # Changing sample name format to correct names format
+  mutate(names = gsub(names, pattern = "[.]", replace = "-"), 
+         names = gsub(names, pattern = "X", replace = "")) %>% 
+  # join with metadata
+  left_join(., metadata_df, by = "names") %>% 
+  # Add colors to data frane
+  left_join(., data.frame(station_colors = station_colors,
+                          station = names(station_colors)), by = "station") 
+  
+# Plot it - Rarefaction Curve
+ iNEXT_manual_df %>%
+   # Filter out rows that are calculated by rarefaction from iNEXT
+   dplyr::filter(Method == "Observed") %>%
+   # Make the actual plot 
+   ggplot(aes(x = m, y=qD, group_by = names, color = station)) +
+   geom_line() +
+   facet_grid(Order.q ~ station, scales = "fixed") +
+   xlab("Number of Sequences") +
+   ylab("Species Diversity") +
+   scale_color_manual(values = station_colors) +
+   theme(legend.position = "bottom")
 
 ```
