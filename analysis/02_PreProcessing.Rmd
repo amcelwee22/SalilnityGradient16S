@@ -16,7 +16,7 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       fig.align = "center",
-                      fig.path = "../figures/02_ProProcessing/") # Sends any figure output to this folder
+                      fig.path = "../figures/02_PreProcessing/") # Sends any figure output to this folder
 ```
 
 
