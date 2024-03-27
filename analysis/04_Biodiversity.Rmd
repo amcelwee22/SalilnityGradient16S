@@ -187,4 +187,53 @@ iNEXT_manual_df <-
    scale_color_manual(values = station_colors) +
    theme(legend.position = "bottom")
 
+
+
+```
+
+
+# Environmental Variable Check
+
+```{r environmental-pairs, fig.width=8, fig.height=8}
+head(metadata_df)
+
+# Pull out environmental variables
+env_df <-
+  metadata_df %>%
+  dplyr::select(names, water_tempC:DO_mgL)
+
+head(env_df)
+
+# plot the correlations between environmental variables
+pairs(dplyr::select(env_df, -names), upper.panel = NULL)
+
+```
+
+# Diversity vs Salinity
+
+```{r div-vs-sal, fig.height=3.5, fig.width = 6}
+# PSU = practical salinity unit
+# 1 PSU = 1 gram of salt per 1000 grams of water
+# 1 PSU = 1 ppt (part per thousand)
+# Freshwater is typically between 0 and 0.5
+# Brackish water is between 0.5 and 30
+# Marine is anything greater than 30
+
+iNEXT_manual_df %>%
+  dplyr::filter(Method == "Observed") %>%
+  ggplot(aes(x = salinity_psu, y = qD)) +
+  facet_wrap(.~Order.q, scales = "free") +
+  geom_point(aes(color = station)) +
+  stat_smooth(method = "lm", formula = y ~poly(x,2)) +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = station_colors) +
+  labs(x = "Salinity (PSU)", y = "Number of ASVs")
+  
+```
+
+# Session Information
+
+```{r session-info}
+# Ensure reproducibility by telling software versions
+devtools::session_info()
 ```

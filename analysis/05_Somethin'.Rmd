@@ -18,8 +18,13 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ```{r load-environment}
 # phytool, gtree, RColorBrewer
-pacman::p_load(phytools, ggtree, RColorBrewer, install = TRUE)
+pacman::p_load(tidyverse, phytools, ggtree, RColorBrewer)
 ```
+
+# Load Data
+```{r load-data}
+
+
 
 
 
