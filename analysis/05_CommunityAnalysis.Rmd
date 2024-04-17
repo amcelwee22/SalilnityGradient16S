@@ -1,0 +1,116 @@
+---
+title: "Between Sample (Beta) Diversity "
+author: "Alicia McElwee"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+ # Set Environment
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/05_CommunityAnalysis/") # Sends any figure output to this folder
+```
+
+# Goals
+
+1. Load in phyloseq data with rooted tree.
+2. Evaluate sequencing depth and remove sample.
+3. Normalize the read counts between samples.
+4. Calculate community dissimlarities, numbers between 0 and 1. If 0, they are completely similar and if its 1 they're completely dissimilar.
+  a. *Sorensen*: sharaed species as a binary value abundance unweighted, presence absence count, does not consider abundance or phylogenetics so emphasizes rare and abundant taxa the same
+  b. *Bray-Curtis*: shared abundant species, abundance weighted weighted by abundance, does not consider phylogenetics, emphasizes abundant taxa more heavily
+  c. *Weighted UNIFRAC*: consider abundant species and where they fall on the tree takes into account abundance and phylogenetic relations (branch lengths)
+5. Visualize the community data with two unconstrained Ordination
+  a. *PCoA*: linear method that calculates Eigenvalue = how much variation is explained by each axis. Can choose which axes to view, axes ordered by amount of variation in the data they describe
+  b. *NMDS*: non-linear method, non-metric multidimensional scaling, smashes many axes into multi-dimensional space, axes do not vary clearly with input variables. ALWAYS need to report the stress value thats ideally less then 0.5 (how stressed the data is when its being smashed into fewer dimensions)
+6. Run statistics with PERMANOVA and betadispR.
+
+# Setup
+
+## Load libraries
+```{r load-libraries}
+#install.packages("vegan")
+pacman::p_load(tidyverse, devtools, phyloseq, patchwork, vegan,
+               install = FALSE)
+
+# Load Station colors
+station_colors <- c(
+  "Shipping Channel" = "dodgerblue4",
+  "Aransas Bay" = "dodgerblue2",
+  "Copano West" = "#D9CC3C",
+  "Copano East" = "#A0E0BA",
+  "Mesquite Bay" = "#00ADA7")
+
+
+```
+
+## Load Data
+```{r load-physeq}
+# Load in rooted phylogenetic tree!
+load("data/03a_PhylogeneticTree/phytree_preprocessed_physeq.RData")
+
+midroot_rm456_physeq
+
+unrooted_physeq_rm456
+
+```
+
+# Explore Read Counts
+Must normalize data for both 16S and metagenomic data!
+```{r calc-seq-depth}
+# Calculate the total number of reads per sample.
+raw_TotalSeq_df <-
+  midroot_rm456_physeq %>%
+  # calculate the sample read sums
+  sample_sums() %>%
+  data.frame() # Sort column by seq depth to see min/ max samp depth sizes
+
+# Name the column
+colnames(raw_TotalSeq_df)[1] <- "TotalSeqs"
+
+head(raw_TotalSeq_df)
+
+# Make histogram of raw reads
+raw_TotalSeq_df %>%
+  ggplot(aes(x = TotalSeqs)) +
+  geom_histogram(bins = 50) +
+  scale_x_continuous(limits =c(0,10000)) +
+  labs(title = "Raw Sequencing Depth Distribution") +
+  theme_bw()
+
+# Looking at html of 04_Biodiversity analysis, remember that there is one sample that is extremely diversity. Turns out that that sample is the same one that has lowest number of reads.
+
+# Plan to remove this sample from the dataset, is very suspicious and likely erroneous given low seq depth and low diversity
+
+
+
+
+
+
+
+```
+
+
+## Normalize read counts
+
+# Calculate and Visualize (PCoA) Community Dissimilarity
+
+## Sorensen PCoA
+
+## Bray-Curtis PCoA
+
+## Weighted UNIFRAC PCoA
+
+## Bray-Curtis NMDS
+
+# Test for Statistical Significance with PERMANOVA and betadispR
+
+# Session Information
+For reproducibility
+
+```{session-info}
+devtools::session_info()
+```
