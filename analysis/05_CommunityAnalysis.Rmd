@@ -60,6 +60,8 @@ unrooted_physeq_rm456
 
 # Explore Read Counts
 Must normalize data for both 16S and metagenomic data!
+
+## Raw Read Depth
 ```{r calc-seq-depth}
 # Calculate the total number of reads per sample.
 raw_TotalSeq_df <-
@@ -85,20 +87,158 @@ raw_TotalSeq_df %>%
 
 # Plan to remove this sample from the dataset, is very suspicious and likely erroneous given low seq depth and low diversity
 
+# Sample name to remove is 20210615-MA-ABB2F
 
+```
 
-
-
+## Remove lowly seq sample
+```{r rm-low-seq-samp}
+raw_rooted_physeq <-
+  midroot_rm456_physeq %>%
+  # remove lowly sequenced sample that was outlier in alpha diversity analysis
+  subset_samples(names != "20210615-MA-ABB2F") %>%
+  # any asvs unique to this sample will also be removed
+  prune_taxa(taxa_sums(.) > 0, .)
+ 
+raw_rooted_physeq
+ 
+# what is the new minimum number of sequences
+raw_rooted_physeq %>%
+  sample_sums() %>%
+  min()
 
 
 ```
 
 
 ## Normalize read counts
+```{r scale-reads}
+# Scale reads function and also matround function 
+
+### scale_reads function
+#################################################################################### 
+# Function to scale reads: http://deneflab.github.io/MicrobeMiseq/ 
+# Scales reads by 
+# 1) taking proportions
+# 2) multiplying by a given library size of n
+# 3) rounding 
+# Default for n is the minimum sample size in your library
+# Default for round is floor
+
+matround <- function(x){trunc(x+0.5)}
+
+scale_reads <- function(physeq, n = min(sample_sums(physeq)), round = "round") {
+  
+  # transform counts to n
+  physeq.scale <- transform_sample_counts(physeq, function(x) {(n * x/sum(x))})
+  
+  # Pick the rounding functions
+  if (round == "floor"){
+    otu_table(physeq.scale) <- floor(otu_table(physeq.scale))
+  } else if (round == "round"){
+    otu_table(physeq.scale) <- round(otu_table(physeq.scale))
+  } else if (round == "matround"){
+    otu_table(physeq.scale) <- matround(otu_table(physeq.scale))
+  }
+  
+  # Prune taxa and return new phyloseq object
+  physeq.scale <- prune_taxa(taxa_sums(physeq.scale) > 0, physeq.scale)
+  return(physeq.scale)
+}
+
+
+
+```
+
+## Scale the reads and check the distribution of the seq depth
+
+This is where one might decide to use rarefaction to normalize data. We used this approach in class since is faster
+```{r scale-physeq}
+min(sample_sums(raw_rooted_physeq))
+
+# Scale reads by the function loaded in the chunk above.
+scaled_rooted_physeq <-
+  raw_rooted_physeq %>%
+  scale_reads(round = "matround")
+
+# Calculate read depth
+scaled_TotalSeqs_df <-
+  scaled_rooted_physeq %>%
+  sample_sums() %>%
+  data.frame() %>%
+  view()
+
+colnames(scaled_TotalSeqs_df)[1] <- "TotalSeqs"
+
+# Inspect
+head(scaled_TotalSeqs_df)
+
+# Check the range of the data
+min_seqs <- min(scaled_TotalSeqs_df$TotalSeqs)
+min_seqs
+
+max_seqs <- max(scaled_TotalSeqs_df$TotalSeqs)
+max_seqs
+
+#range in seq depth
+max_seqs - min_seqs
+
+# Plot histogram
+scaled_TotalSeqs_df %>%
+  ggplot(aes(x = TotalSeqs)) +
+  geom_histogram(bins=50) +
+  scale_x_continuous(limits = c(0,10000)) +
+  labs(title = "Scaled Sequencing Depth at 2194") +
+  theme_classic()
+  
+```
 
 # Calculate and Visualize (PCoA) Community Dissimilarity
 
+Exploratory analyses from the Paliy and Shankar 2016 paper, which is using unconstrained ordination methods like PCoA
+
 ## Sorensen PCoA
+```{r sorensen-pcoa}
+# Calculate the sorensen dissimilarity: Abundance-unweighted of shared taxa
+scaled_soren_pcoa <-
+  ordinate(
+  physeq = scaled_rooted_physeq,
+  method = "PCoA",
+  distance = "bray",
+  binary = TRUE
+)
+
+# str(scaled_soren_pcoa)
+
+# Plot the ordination
+plot_ordination(
+  physeq = scaled_rooted_physeq,
+  ordination = scaled_soren_pcoa,
+  color = "station",
+  title = "Sorenson PCoA") +
+  scale_color_manual(values = station_colors) +
+  theme_bw()
+
+# PERMANOVA of sorenson
+# Make a new object that has sorensen dissimilarity matrix
+sorenson_distance <-
+  phyloseq::distance(scaled_rooted_physeq, method = "bray", binary = TRUE)
+
+str(sorenson_distance)
+
+# Metadata
+metadata <- 
+  scaled_rooted_physeq %>%
+  sample_data() %>%
+  data.frame()
+
+metadata
+
+# Actually run the PERMANOVA
+## TEsting if the centroids of the data are similar or different?
+adonis2(sorenson_distance ~ station, data = metadata)
+
+```
 
 ## Bray-Curtis PCoA
 
