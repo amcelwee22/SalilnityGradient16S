@@ -47,6 +47,11 @@ station_colors <- c(
 
 ```
 
+## Set Seed
+```{r set-seed}
+set.seed(238428)
+```
+
 ## Load Data
 ```{r load-physeq}
 # Load in rooted phylogenetic tree!
@@ -57,6 +62,39 @@ midroot_rm456_physeq
 unrooted_physeq_rm456
 
 ```
+
+## Set Colors for Phyla
+```{r phylum-colors}
+# Set the phylum colors
+phylum_colors <- c(
+  Acidobacteriota = "navy", 
+  Actinobacteriota = "darkslategray2", 
+  Armatimonadota = "deeppink1",
+  Alphaproteobacteria = "plum2", 
+  Bacteroidota = "gold", 
+  Betaproteobacteria = "plum1", 
+  Bdellovibrionota = "red1",
+  Chloroflexi="black", 
+  Crenarchaeota = "firebrick",
+  Cyanobacteria = "limegreen",
+  Deltaproteobacteria = "grey", 
+  Desulfobacterota="magenta",
+  Firmicutes = "#3E9B96",
+  Gammaproteobacteria = "greenyellow",
+  "Marinimicrobia (SAR406 clade)" = "yellow",
+  Myxococcota = "#B5D6AA",
+  Nitrospirota = "palevioletred1",
+  Proteobacteria = "royalblue",
+  Planctomycetota = "darkorange", 
+  "SAR324 clade(Marine group B)" = "olivedrab",
+  #Proteobacteria_unclassified = "greenyellow",
+  Thermoplasmatota = "green",
+  Verrucomicrobiota = "darkorchid1")
+ # Other = "grey")
+
+```
+
+
 
 # Explore Read Counts
 Must normalize data for both 16S and metagenomic data!
@@ -165,8 +203,7 @@ scaled_rooted_physeq <-
 scaled_TotalSeqs_df <-
   scaled_rooted_physeq %>%
   sample_sums() %>%
-  data.frame() %>%
-  view()
+  data.frame() 
 
 colnames(scaled_TotalSeqs_df)[1] <- "TotalSeqs"
 
@@ -247,6 +284,143 @@ adonis2(sorenson_distance ~ station, data = metadata)
 ## Bray-Curtis NMDS
 
 # Test for Statistical Significance with PERMANOVA and betadispR
+
+
+
+# Taxanomic Composition
+
+## Phylum
+### Add Phylum colors
+```{r phylum-colors}
+# Set the phylum colors
+phylum_colors <- c(
+  Acidobacteriota = "navy", 
+  Actinobacteriota = "darkslategray2", 
+  Armatimonadota = "deeppink1",
+  Alphaproteobacteria = "plum2", 
+  Bacteroidota = "gold", 
+  Betaproteobacteria = "plum1", 
+  Bdellovibrionota = "red1",
+  Chloroflexi="black", 
+  Crenarchaeota = "firebrick",
+  Cyanobacteria = "limegreen",
+  Deltaproteobacteria = "grey", 
+  Desulfobacterota="magenta",
+  Firmicutes = "#3E9B96",
+  Gammaproteobacteria = "greenyellow",
+  "Marinimicrobia (SAR406 clade)" = "yellow",
+  Myxococcota = "#B5D6AA",
+  Nitrospirota = "palevioletred1",
+  Proteobacteria = "royalblue",
+  Planctomycetota = "darkorange", 
+  "SAR324 clade(Marine group B)" = "olivedrab",
+  #Proteobacteria_unclassified = "greenyellow",
+  Thermoplasmatota = "green",
+  Verrucomicrobiota = "darkorchid1")
+ # Other = "grey")
+
+```
+
+
+### Plot phylum composition
+```{r phylum-composition}
+# Calculate the phylum relative abundance
+# Note: the read depth MUST be normalized in some way, here we have used scaled_reads
+phylum_df <-
+  scaled_rooted_physeq %>%
+  # agglomerate at the phylum level (combine ASVs within sample at same phylum level)
+  tax_glom(taxrank = "Phylum") %>%
+  # Transform counts to relative abundance
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format
+  psmelt() %>%
+  # Filter out phyla that are < 1% to help with visualization, get rid of lowly abundant phyla
+  dplyr::filter(Abundance > 0.01) %>%
+  # Fix the order of the dates
+  mutate(date =fct_relevel(date, c("6/2/21", "6/15/21", "10/5/21")), 
+         station = fct_relevel(station, c("Copano West", "Copano East", "Mesquite Bay", "Aransas Bay", "Shipping Channel")))
+
+# Stacked barplot with all phyla
+# Plot Phylum Abundances! - make sure to load phylum-colors first
+phylum_df %>%
+  # Its important one sample per x value, 
+  # otherwise it will take the sum between multiple samples
+  # If have greater than 1 on y axis, you have more than 1 sample
+  dplyr::filter(depth == 0.0) %>%
+  dplyr::filter(fraction == "Whole") %>%
+  ggplot(aes(x = station, y = Abundance, fill = Phylum)) +
+  facet_grid(.~date) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(title = "Surface Phylum Composition") +
+  scale_fill_manual(values = phylum_colors) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+## Make each phyla its own row
+phylum_df %>%
+  # Its important one sample per x value, 
+  # otherwise it will take the sum between multiple samples
+  # If have greater than 1 on y axis, you have more than 1 sample
+  dplyr::filter(depth == 0.0) %>%
+  dplyr::filter(fraction == "Whole") %>%
+  ggplot(aes(x = station, y = Abundance, fill = Phylum)) +
+  facet_grid(Phylum~date, scale = "free") +
+  geom_bar(stat = "identity", color = "black") +
+  labs(title = "Surface Phylum Composition") +
+  scale_fill_manual(values = phylum_colors) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1))
+
+# Narrow in on a specific group
+# Actinobacteriota ~ y: abundance, x: station, dot plot + boxplot
+phylum_df %>%
+  dplyr::filter(Phylum == "Actinobacteriota") %>%
+  ggplot(aes(x = station, y = Abundance, fill = station, color = station)) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot
+  geom_jitter(alpha = 0.3) +
+  theme_bw() +
+  labs(title = "Actinobacteriota Phylum Abundance") +
+  scale_color_manual(values = station_colors) +
+  scale_fill_manual(values = station_colors)
+  # Statistically would do Kruskall-Wallis followed by a Tukey's Posthoc test
+  # These are non parametric which we must use for non-normal data
+
+```
+
+## Family
+```{r family-composition}
+family_df <-
+  scaled_rooted_physeq %>%
+  # agglomerate at the phylum level (combine ASVs within sample at same phylum level)
+  tax_glom(taxrank = "Family") %>%
+  # Transform counts to relative abundance
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format
+  psmelt() %>%
+  # Filter out phyla that are < 1% to help with visualization, get rid of lowly abundant phyla
+  dplyr::filter(Abundance > 0.01) %>%
+  # Fix the order of the dates
+  mutate(date =fct_relevel(date, c("6/2/21", "6/15/21", "10/5/21")), 
+         station = fct_relevel(station, c("Copano West", "Copano East", "Mesquite Bay", "Aransas Bay", "Shipping Channel")))
+
+str(family_df)
+
+# Plot by family
+family_df %>%
+  dplyr::filter(Phylum == "Actinobacteriota") %>%
+  ggplot(aes(x = station, y = Abundance, fill = station, color = station)) +
+  facet_wrap(.~Family, scales = "free_y", nrow = 1) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + # outliers not plotted here in boxplot
+  geom_jitter(alpha = 0.3) +
+  theme_bw() +
+  labs(title = "Actinobacteriota Family Abundance") +
+  scale_color_manual(values = station_colors) +
+  scale_fill_manual(values = station_colors)
+  # Statistically would do Kruskall-Wallis followed by a Tukey's Posthoc test
+  # These are non parametric which we must use for non-normal data
+
+
+```
 
 # Session Information
 For reproducibility
